@@ -1,9 +1,12 @@
 //! Queue that plays sounds one after the other.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
+use std::{
+    collections::VecDeque,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use crate::source::{Empty, Source, Zero};
 use crate::Sample;
@@ -32,6 +35,7 @@ where
         current: Box::new(Empty::<S>::new()) as Box<_>,
         signal_after_end: None,
         input: input.clone(),
+        sample_cache: VecDeque::new(),
     };
 
     (input, output)
@@ -98,6 +102,7 @@ pub struct SourcesQueueOutput<S> {
 
     // The next sounds.
     input: Arc<SourcesQueueInput<S>>,
+    sample_cache: VecDeque<Option<S>>,
 }
 
 impl<S> Source for SourcesQueueOutput<S>
@@ -162,6 +167,9 @@ where
     #[inline]
     fn next(&mut self) -> Option<S> {
         loop {
+            if self.sample_cache.len() > 0 {
+                return self.sample_cache.pop_front().unwrap();
+            }
             // Basic situation that will happen most of the time.
             if let Some(sample) = self.current.next() {
                 return Some(sample);
@@ -214,6 +222,25 @@ where
         };
 
         self.current = next;
+        loop {
+            let l = self.current.next();
+            let r = self.current.next();
+            match (l, r) {
+                (Some(ll), Some(rr)) => {
+                    if ll.to_f32() == 0. && rr.to_f32() == 0. {
+                        continue;
+                    }
+                }
+                _ => {
+                    self.sample_cache.push_back(l);
+                    self.sample_cache.push_back(r);
+                    break;
+                }
+            }
+
+            break;
+        }
+
         self.signal_after_end = signal_after_end;
         Ok(())
     }

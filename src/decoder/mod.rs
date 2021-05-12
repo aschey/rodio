@@ -1,11 +1,19 @@
 //! Decodes samples from an audio file.
 
-use std::error::Error;
 use std::fmt;
 #[allow(unused_imports)]
 use std::io::{Read, Seek, SeekFrom};
 use std::mem;
 use std::time::Duration;
+use std::{error::Error, io};
+
+use symphonia::core::{
+    formats::{FormatOptions, SeekTo},
+    io::{MediaSource, MediaSourceStream, ReadOnlySource},
+    meta::MetadataOptions,
+    probe::Hint,
+    units::Time,
+};
 
 use crate::Source;
 
@@ -40,13 +48,64 @@ where
     #[cfg(feature = "flac")]
     Flac(flac::FlacDecoder<R>),
     #[cfg(feature = "mp3")]
-    Mp3(mp3::Mp3Decoder<R>),
+    Mp3(mp3::Mp3Decoder),
     None(::std::marker::PhantomData<R>),
+}
+
+/// `ReadSeekSource` implements a seekable `MediaSource` for any reader that implements the
+/// `std::io::Read` and `std::io::Seek` traits.
+pub struct ReadSeekSource<T: io::Read + io::Seek> {
+    inner: T,
+}
+
+impl<T: io::Read + io::Seek> ReadSeekSource<T> {
+    /// Instantiates a new `ReadSeekSource<T>` by taking ownership and wrapping the provided
+    /// `Read + Seek`er.
+    pub fn new(inner: T) -> Self {
+        ReadSeekSource { inner }
+    }
+
+    /// Gets a reference to the underlying reader.
+    pub fn get_ref(&self) -> &T {
+        &self.inner
+    }
+
+    /// Gets a mutable reference to the underlying reader.
+    pub fn get_mut(&mut self) -> &mut T {
+        &mut self.inner
+    }
+
+    /// Unwraps this `ReadSeekSource<T>`, returning the underlying reader.
+    pub fn into_inner(self) -> T {
+        self.inner
+    }
+}
+
+impl<T: io::Read + io::Seek> MediaSource for ReadSeekSource<T> {
+    fn is_seekable(&self) -> bool {
+        true
+    }
+
+    fn len(&self) -> Option<u64> {
+        None
+    }
+}
+
+impl<T: io::Read + io::Seek> io::Read for ReadSeekSource<T> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.inner.read(buf)
+    }
+}
+
+impl<T: io::Read + io::Seek> io::Seek for ReadSeekSource<T> {
+    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
+        self.inner.seek(pos)
+    }
 }
 
 impl<R> Decoder<R>
 where
-    R: Read + Seek + Send,
+    R: Read + Seek + Send + 'static,
 {
     /// Builds a new decoder.
     ///
@@ -78,10 +137,23 @@ where
         };
 
         #[cfg(feature = "mp3")]
-        let data = match mp3::Mp3Decoder::new(data) {
-            Err(data) => data,
-            Ok(decoder) => {
-                return Ok(Decoder(DecoderImpl::Mp3(decoder)));
+        let data = {
+            let mss = MediaSourceStream::new(
+                Box::new(ReadSeekSource::new(data)) as Box<dyn MediaSource>,
+                Default::default(),
+            );
+            let mut hint = Hint::new();
+
+            let format_opts: FormatOptions = Default::default();
+            let metadata_opts: MetadataOptions = Default::default();
+            let probed = symphonia::default::get_probe()
+                .format(&hint, mss, &format_opts, &metadata_opts)
+                .unwrap();
+            match mp3::Mp3Decoder::new(probed) {
+                Err(data) => data,
+                Ok(decoder) => {
+                    return Ok(Decoder(DecoderImpl::Mp3(decoder)));
+                }
             }
         };
 
@@ -121,9 +193,21 @@ where
     /// Builds a new decoder from mp3 data.
     #[cfg(feature = "mp3")]
     pub fn new_mp3(data: R) -> Result<Decoder<R>, DecoderError> {
-        match mp3::Mp3Decoder::new(data) {
+        let mss = MediaSourceStream::new(
+            Box::new(ReadOnlySource::new(data)) as Box<dyn MediaSource>,
+            Default::default(),
+        );
+        let mut hint = Hint::new();
+        let format_opts: FormatOptions = Default::default();
+        let metadata_opts: MetadataOptions = Default::default();
+        let mut probed = symphonia::default::get_probe()
+            .format(&hint, mss, &format_opts, &metadata_opts)
+            .unwrap();
+        match mp3::Mp3Decoder::new(probed) {
             Err(_) => Err(DecoderError::UnrecognizedFormat),
-            Ok(decoder) => Ok(Decoder(DecoderImpl::Mp3(decoder))),
+            Ok(decoder) => {
+                return Ok(Decoder(DecoderImpl::Mp3(decoder)));
+            }
         }
     }
 }
@@ -292,7 +376,12 @@ where
                 #[cfg(feature = "mp3")]
                 DecoderImpl::Mp3(source) => {
                     let mut reader = source.into_inner();
-                    reader.seek(SeekFrom::Start(0)).ok()?;
+                    reader
+                        .format
+                        .seek(SeekTo::Time {
+                            time: Time::from_ss(0, 0).unwrap(),
+                        })
+                        .ok()?;
                     let mut source = mp3::Mp3Decoder::new(reader).ok()?;
                     let sample = source.next();
                     (DecoderImpl::Mp3(source), sample)
