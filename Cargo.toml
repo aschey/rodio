@@ -14,7 +14,8 @@ cpal = "0.13"
 claxon = { version = "0.4.2", optional = true }
 hound = { version = "3.3.1", optional = true }
 lewton = { version = "0.10", optional = true }
-symphonia = {git="https://github.com/pdeljanov/Symphonia", rev="17767d8", optional = true, features = [ "aac", "mp3", "isomp4" ] }
+symphonia = {path="../symphonia/symphonia", optional = true, features = [ "aac", "mp3", "isomp4" ] }
+pretty_env_logger = "0.4.0"
 
 [features]
 default = ["flac", "vorbis", "wav", "mp3"]

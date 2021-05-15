@@ -117,6 +117,13 @@ where
         let ms = self.len() as u64 * 1000 / (self.channels as u64 * self.sample_rate as u64);
         Some(Duration::from_millis(ms))
     }
+
+    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+        match self.reader.reader.seek(time.as_secs() as u32 * self.sample_rate) {
+            Ok(()) => Ok(time),
+            Err(_) => Err(()),
+        }
+    }
 }
 
 impl<R> Iterator for WavDecoder<R>

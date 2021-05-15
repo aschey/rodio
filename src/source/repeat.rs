@@ -84,6 +84,12 @@ where
     fn total_duration(&self) -> Option<Duration> {
         None
     }
+    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+        match self.inner.current_frame_len() {
+            Some(0) => self.next.seek(time),
+            _ => self.inner.seek(time),
+        }
+    }
 }
 
 impl<I> Clone for Repeat<I>

@@ -135,6 +135,14 @@ where
     fn total_duration(&self) -> Option<Duration> {
         None
     }
+
+    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+        if let Some(src) = &mut self.current_source {
+            src.seek(time)
+        } else {
+            Ok(time)
+        }
+    }
 }
 
 #[cfg(test)]

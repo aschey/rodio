@@ -24,6 +24,7 @@ struct Controls {
     pause: AtomicBool,
     volume: Mutex<f32>,
     stopped: AtomicBool,
+    seek: Mutex<Option<Duration>>,
 }
 
 impl Sink {
@@ -47,6 +48,7 @@ impl Sink {
                 pause: AtomicBool::new(false),
                 volume: Mutex::new(1.0),
                 stopped: AtomicBool::new(false),
+                seek: Mutex::new(None),
             }),
             sound_count: Arc::new(AtomicUsize::new(0)),
             detached: false,
@@ -72,6 +74,9 @@ impl Sink {
                 if controls.stopped.load(Ordering::SeqCst) {
                     src.stop();
                 } else {
+                    if let Some(seek_time) = controls.seek.lock().unwrap().take() {
+                        src.seek(seek_time).unwrap();
+                    }
                     src.inner_mut().set_factor(*controls.volume.lock().unwrap());
                     src.inner_mut()
                         .inner_mut()
@@ -117,6 +122,10 @@ impl Sink {
     /// A paused sink can be resumed with `play()`.
     pub fn pause(&self) {
         self.controls.pause.store(true, Ordering::SeqCst);
+    }
+
+    pub fn seek(&self, seek_time: Duration) {
+        *self.controls.seek.lock().unwrap() = Some(seek_time);
     }
 
     /// Gets if a sink is paused

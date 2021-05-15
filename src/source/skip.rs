@@ -151,6 +151,10 @@ where
                 .unwrap_or_else(|| Duration::from_secs(0))
         })
     }
+
+    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+        self.input.seek(time)
+    }
 }
 
 #[cfg(test)]

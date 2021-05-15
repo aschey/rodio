@@ -94,6 +94,9 @@ where
     fn total_duration(&self) -> Option<Duration> {
         None
     }
+    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+        self.current_sources[0].seek(time)
+    }
 }
 
 impl<S> Iterator for DynamicMixer<S>

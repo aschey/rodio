@@ -1,18 +1,24 @@
-use std::io::BufReader;
+use std::{io::BufReader, thread, time::Duration};
+
+use rodio::Source;
 
 fn main() {
+    pretty_env_logger::init();
     let (_stream, handle) = rodio::OutputStream::try_default().unwrap();
     let sink = rodio::Sink::try_new(&handle).unwrap();
 
-    let file = std::fs::File::open("examples/music.mp3").unwrap();
+    let file = std::fs::File::open("C:\\shared_files\\Music\\EDM Mixes\\April - 2013.mp3").unwrap();
     let file2 = std::fs::File::open(
-        "C:\\Users\\asche\\Downloads\\Stanley.Clarke.AAC\\01 01 Vulcan Princess_short.m4a",
+        "C:\\shared_files\\Music\\Between the Buried and Me\\Colors\\05 Ants of the Sky.m4a",
     )
     .unwrap();
     let decoder1 = rodio::Decoder::new(BufReader::new(file)).unwrap();
-    let decoder2 = rodio::Decoder::new(BufReader::new(file2)).unwrap();
-    sink.append(decoder1);
+    let mut decoder2 = rodio::Decoder::new(BufReader::new(file2)).unwrap();
+    //S.buffered();
+    //sink.append(decoder1);
     sink.append(decoder2);
+    thread::sleep(Duration::from_secs(1));
+    sink.seek(Duration::from_secs(300));
 
     sink.sleep_until_end();
 }

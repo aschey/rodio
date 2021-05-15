@@ -115,4 +115,8 @@ where
     fn total_duration(&self) -> Option<Duration> {
         self.input.total_duration()
     }
+
+    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+        self.input.seek(time)
+    }
 }

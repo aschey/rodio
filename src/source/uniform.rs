@@ -135,6 +135,23 @@ where
     fn total_duration(&self) -> Option<Duration> {
         self.total_duration
     }
+
+    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+        let mut input = self
+            .inner
+            .take()
+            .unwrap()
+            .into_inner()
+            .into_inner()
+            .into_inner()
+            .iter;
+        let ret = input.seek(time);
+        let input =
+            UniformSourceIterator::bootstrap(input, self.target_channels, self.target_sample_rate);
+
+        self.inner = Some(input);
+        return ret;
+    }
 }
 
 #[derive(Clone, Debug)]

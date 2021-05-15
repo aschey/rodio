@@ -118,4 +118,8 @@ where
             _ => None,
         }
     }
+    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+        self.input1.seek(time).unwrap();
+        self.input2.seek(time)
+    }
 }

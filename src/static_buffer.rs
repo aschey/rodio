@@ -84,6 +84,14 @@ where
     fn total_duration(&self) -> Option<Duration> {
         Some(self.duration)
     }
+
+    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+        let iters = time.as_secs() * self.sample_rate as u64;
+        for _ in 0..iters {
+            self.next();
+        }
+        Ok(time)
+    }
 }
 
 impl<S> Iterator for StaticSamplesBuffer<S>

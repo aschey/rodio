@@ -208,6 +208,25 @@ where
     fn total_duration(&self) -> Option<Duration> {
         self.total_duration
     }
+
+    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+        loop {
+            match &*self.current_frame {
+                Frame::Data(FrameData { .. }) => {
+                    self.next_frame();
+                }
+
+                Frame::End => {
+                    return Ok(time);
+                }
+
+                Frame::Input(input) => {
+                    let mut input = input.lock().unwrap().take().unwrap();
+                    return input.seek(time);
+                }
+            };
+        }
+    }
 }
 
 impl<I> Clone for Buffered<I>

@@ -73,6 +73,16 @@ where
     fn total_duration(&self) -> Option<Duration> {
         None
     }
+
+    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+        match self
+            .stream_reader
+            .seek_absgp_pg(time.as_secs() * self.sample_rate() as u64)
+        {
+            Ok(()) => Ok(time),
+            Err(_) => Err(()),
+        }
+    }
 }
 
 impl<R> Iterator for VorbisDecoder<R>

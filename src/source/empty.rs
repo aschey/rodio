@@ -53,4 +53,8 @@ where
     fn total_duration(&self) -> Option<Duration> {
         Some(Duration::new(0, 0))
     }
+
+    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+        Ok(time)
+    }
 }

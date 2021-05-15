@@ -144,6 +144,8 @@ where
     /// `None` indicates at the same time "infinite" or "unknown".
     fn total_duration(&self) -> Option<Duration>;
 
+    fn seek(&mut self, time: Duration) -> Result<Duration, ()>;
+
     /// Stores the source in a buffer in addition to returning it. This iterator can be cloned.
     #[inline]
     fn buffered(self) -> Buffered<Self>
@@ -352,6 +354,9 @@ where
     fn total_duration(&self) -> Option<Duration> {
         (**self).total_duration()
     }
+    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+        (**self).seek(time)
+    }
 }
 
 impl<S> Source for Box<dyn Source<Item = S> + Send>
@@ -376,6 +381,10 @@ where
     #[inline]
     fn total_duration(&self) -> Option<Duration> {
         (**self).total_duration()
+    }
+
+    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+        (**self).seek(time)
     }
 }
 
@@ -402,9 +411,8 @@ where
     fn total_duration(&self) -> Option<Duration> {
         (**self).total_duration()
     }
-}
 
-pub trait SourceExt {
-    /// Seek to pos and whether the seek succeeded
-    fn request_pos(&mut self, pos: f32) -> bool;
+    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+        (**self).seek(time)
+    }
 }

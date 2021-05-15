@@ -6,21 +6,13 @@ use std::io::{Read, Seek, SeekFrom};
 use std::mem;
 use std::time::Duration;
 use std::{error::Error, io};
-
-use symphonia::core::{
-    formats::{FormatOptions, SeekTo},
-    io::{MediaSource, MediaSourceStream, ReadOnlySource},
-    meta::MetadataOptions,
-    probe::Hint,
-    units::Time,
-};
+#[cfg(any(feature = "mp3", feature = "flac"))]
+use symphonia::core::io::{MediaSource, MediaSourceStream, ReadOnlySource};
 
 use crate::Source;
 
-#[cfg(feature = "flac")]
-mod flac;
-#[cfg(feature = "mp3")]
-mod mp3;
+#[cfg(any(feature = "mp3", feature = "flac"))]
+mod symphonia_decoder;
 #[cfg(feature = "vorbis")]
 mod vorbis;
 #[cfg(feature = "wav")]
@@ -45,10 +37,8 @@ where
     Wav(wav::WavDecoder<R>),
     #[cfg(feature = "vorbis")]
     Vorbis(vorbis::VorbisDecoder<R>),
-    #[cfg(feature = "flac")]
-    Flac(flac::FlacDecoder<R>),
-    #[cfg(feature = "mp3")]
-    Mp3(mp3::Mp3Decoder),
+    #[cfg(any(feature = "mp3", feature = "flac"))]
+    Symphonia(symphonia_decoder::SymphoniaDecoder),
     None(::std::marker::PhantomData<R>),
 }
 
@@ -120,13 +110,13 @@ where
             }
         };
 
-        #[cfg(feature = "flac")]
-        let data = match flac::FlacDecoder::new(data) {
-            Err(data) => data,
-            Ok(decoder) => {
-                return Ok(Decoder(DecoderImpl::Flac(decoder)));
-            }
-        };
+        // #[cfg(feature = "flac")]
+        // let data = match flac::FlacDecoder::new(data) {
+        //     Err(data) => data,
+        //     Ok(decoder) => {
+        //         return Ok(Decoder(DecoderImpl::Flac(decoder)));
+        //     }
+        // };
 
         #[cfg(feature = "vorbis")]
         let data = match vorbis::VorbisDecoder::new(data) {
@@ -136,23 +126,17 @@ where
             }
         };
 
-        #[cfg(feature = "mp3")]
+        #[cfg(any(feature = "mp3", feature = "flac"))]
         let data = {
             let mss = MediaSourceStream::new(
                 Box::new(ReadSeekSource::new(data)) as Box<dyn MediaSource>,
                 Default::default(),
             );
-            let mut hint = Hint::new();
 
-            let format_opts: FormatOptions = Default::default();
-            let metadata_opts: MetadataOptions = Default::default();
-            let probed = symphonia::default::get_probe()
-                .format(&hint, mss, &format_opts, &metadata_opts)
-                .unwrap();
-            match mp3::Mp3Decoder::new(probed) {
+            match symphonia_decoder::SymphoniaDecoder::new(mss) {
                 Err(data) => data,
                 Ok(decoder) => {
-                    return Ok(Decoder(DecoderImpl::Mp3(decoder)));
+                    return Ok(Decoder(DecoderImpl::Symphonia(decoder)));
                 }
             }
         };
@@ -172,15 +156,6 @@ where
         }
     }
 
-    /// Builds a new decoder from flac data.
-    #[cfg(feature = "flac")]
-    pub fn new_flac(data: R) -> Result<Decoder<R>, DecoderError> {
-        match flac::FlacDecoder::new(data) {
-            Err(_) => Err(DecoderError::UnrecognizedFormat),
-            Ok(decoder) => Ok(Decoder(DecoderImpl::Flac(decoder))),
-        }
-    }
-
     /// Builds a new decoder from vorbis data.
     #[cfg(feature = "vorbis")]
     pub fn new_vorbis(data: R) -> Result<Decoder<R>, DecoderError> {
@@ -197,16 +172,11 @@ where
             Box::new(ReadOnlySource::new(data)) as Box<dyn MediaSource>,
             Default::default(),
         );
-        let mut hint = Hint::new();
-        let format_opts: FormatOptions = Default::default();
-        let metadata_opts: MetadataOptions = Default::default();
-        let mut probed = symphonia::default::get_probe()
-            .format(&hint, mss, &format_opts, &metadata_opts)
-            .unwrap();
-        match mp3::Mp3Decoder::new(probed) {
+
+        match symphonia_decoder::SymphoniaDecoder::new(mss) {
             Err(_) => Err(DecoderError::UnrecognizedFormat),
             Ok(decoder) => {
-                return Ok(Decoder(DecoderImpl::Mp3(decoder)));
+                return Ok(Decoder(DecoderImpl::Symphonia(decoder)));
             }
         }
     }
@@ -234,10 +204,8 @@ where
             DecoderImpl::Wav(source) => source.next(),
             #[cfg(feature = "vorbis")]
             DecoderImpl::Vorbis(source) => source.next(),
-            #[cfg(feature = "flac")]
-            DecoderImpl::Flac(source) => source.next(),
-            #[cfg(feature = "mp3")]
-            DecoderImpl::Mp3(source) => source.next(),
+            #[cfg(any(feature = "mp3", feature = "flac"))]
+            DecoderImpl::Symphonia(source) => source.next(),
             DecoderImpl::None(_) => None,
         }
     }
@@ -249,10 +217,8 @@ where
             DecoderImpl::Wav(source) => source.size_hint(),
             #[cfg(feature = "vorbis")]
             DecoderImpl::Vorbis(source) => source.size_hint(),
-            #[cfg(feature = "flac")]
-            DecoderImpl::Flac(source) => source.size_hint(),
-            #[cfg(feature = "mp3")]
-            DecoderImpl::Mp3(source) => source.size_hint(),
+            #[cfg(any(feature = "mp3", feature = "flac"))]
+            DecoderImpl::Symphonia(source) => source.size_hint(),
             DecoderImpl::None(_) => (0, None),
         }
     }
@@ -269,10 +235,8 @@ where
             DecoderImpl::Wav(source) => source.current_frame_len(),
             #[cfg(feature = "vorbis")]
             DecoderImpl::Vorbis(source) => source.current_frame_len(),
-            #[cfg(feature = "flac")]
-            DecoderImpl::Flac(source) => source.current_frame_len(),
-            #[cfg(feature = "mp3")]
-            DecoderImpl::Mp3(source) => source.current_frame_len(),
+            #[cfg(any(feature = "mp3", feature = "flac"))]
+            DecoderImpl::Symphonia(source) => source.current_frame_len(),
             DecoderImpl::None(_) => Some(0),
         }
     }
@@ -284,10 +248,8 @@ where
             DecoderImpl::Wav(source) => source.channels(),
             #[cfg(feature = "vorbis")]
             DecoderImpl::Vorbis(source) => source.channels(),
-            #[cfg(feature = "flac")]
-            DecoderImpl::Flac(source) => source.channels(),
-            #[cfg(feature = "mp3")]
-            DecoderImpl::Mp3(source) => source.channels(),
+            #[cfg(any(feature = "mp3", feature = "flac"))]
+            DecoderImpl::Symphonia(source) => source.channels(),
             DecoderImpl::None(_) => 0,
         }
     }
@@ -299,10 +261,8 @@ where
             DecoderImpl::Wav(source) => source.sample_rate(),
             #[cfg(feature = "vorbis")]
             DecoderImpl::Vorbis(source) => source.sample_rate(),
-            #[cfg(feature = "flac")]
-            DecoderImpl::Flac(source) => source.sample_rate(),
-            #[cfg(feature = "mp3")]
-            DecoderImpl::Mp3(source) => source.sample_rate(),
+            #[cfg(any(feature = "mp3", feature = "flac"))]
+            DecoderImpl::Symphonia(source) => source.sample_rate(),
             DecoderImpl::None(_) => 1,
         }
     }
@@ -314,11 +274,20 @@ where
             DecoderImpl::Wav(source) => source.total_duration(),
             #[cfg(feature = "vorbis")]
             DecoderImpl::Vorbis(source) => source.total_duration(),
-            #[cfg(feature = "flac")]
-            DecoderImpl::Flac(source) => source.total_duration(),
-            #[cfg(feature = "mp3")]
-            DecoderImpl::Mp3(source) => source.total_duration(),
+            #[cfg(any(feature = "mp3", feature = "flac"))]
+            DecoderImpl::Symphonia(source) => source.total_duration(),
             DecoderImpl::None(_) => Some(Duration::default()),
+        }
+    }
+    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+        match &mut self.0 {
+            #[cfg(feature = "wav")]
+            DecoderImpl::Wav(source) => source.seek(time),
+            #[cfg(feature = "vorbis")]
+            DecoderImpl::Vorbis(source) => source.seek(time),
+            #[cfg(any(feature = "mp3", feature = "flac"))]
+            DecoderImpl::Symphonia(source) => source.seek(time),
+            DecoderImpl::None(_) => Ok(time),
         }
     }
 }
@@ -336,10 +305,8 @@ where
             DecoderImpl::Wav(source) => source.next(),
             #[cfg(feature = "vorbis")]
             DecoderImpl::Vorbis(source) => source.next(),
-            #[cfg(feature = "flac")]
-            DecoderImpl::Flac(source) => source.next(),
-            #[cfg(feature = "mp3")]
-            DecoderImpl::Mp3(source) => source.next(),
+            #[cfg(any(feature = "mp3", feature = "flac"))]
+            DecoderImpl::Symphonia(source) => source.next(),
             DecoderImpl::None(_) => None,
         } {
             Some(sample)
@@ -365,26 +332,13 @@ where
                     let sample = source.next();
                     (DecoderImpl::Vorbis(source), sample)
                 }
-                #[cfg(feature = "flac")]
-                DecoderImpl::Flac(source) => {
-                    let mut reader = source.into_inner();
+                #[cfg(any(feature = "mp3", feature = "flac"))]
+                DecoderImpl::Symphonia(source) => {
+                    let mut reader = Box::new(source).into_inner();
                     reader.seek(SeekFrom::Start(0)).ok()?;
-                    let mut source = flac::FlacDecoder::new(reader).ok()?;
+                    let mut source = symphonia_decoder::SymphoniaDecoder::new(reader).ok()?;
                     let sample = source.next();
-                    (DecoderImpl::Flac(source), sample)
-                }
-                #[cfg(feature = "mp3")]
-                DecoderImpl::Mp3(source) => {
-                    let mut reader = source.into_inner();
-                    reader
-                        .format
-                        .seek(SeekTo::Time {
-                            time: Time::from_ss(0, 0).unwrap(),
-                        })
-                        .ok()?;
-                    let mut source = mp3::Mp3Decoder::new(reader).ok()?;
-                    let sample = source.next();
-                    (DecoderImpl::Mp3(source), sample)
+                    (DecoderImpl::Symphonia(source), sample)
                 }
                 none @ DecoderImpl::None(_) => (none, None),
             };
@@ -400,10 +354,8 @@ where
             DecoderImpl::Wav(source) => (source.size_hint().0, None),
             #[cfg(feature = "vorbis")]
             DecoderImpl::Vorbis(source) => (source.size_hint().0, None),
-            #[cfg(feature = "flac")]
-            DecoderImpl::Flac(source) => (source.size_hint().0, None),
-            #[cfg(feature = "mp3")]
-            DecoderImpl::Mp3(source) => (source.size_hint().0, None),
+            #[cfg(any(feature = "mp3", feature = "flac"))]
+            DecoderImpl::Symphonia(source) => (source.size_hint().0, None),
             DecoderImpl::None(_) => (0, None),
         }
     }
@@ -420,10 +372,8 @@ where
             DecoderImpl::Wav(source) => source.current_frame_len(),
             #[cfg(feature = "vorbis")]
             DecoderImpl::Vorbis(source) => source.current_frame_len(),
-            #[cfg(feature = "flac")]
-            DecoderImpl::Flac(source) => source.current_frame_len(),
-            #[cfg(feature = "mp3")]
-            DecoderImpl::Mp3(source) => source.current_frame_len(),
+            #[cfg(any(feature = "mp3", feature = "flac"))]
+            DecoderImpl::Symphonia(source) => source.current_frame_len(),
             DecoderImpl::None(_) => Some(0),
         }
     }
@@ -435,10 +385,8 @@ where
             DecoderImpl::Wav(source) => source.channels(),
             #[cfg(feature = "vorbis")]
             DecoderImpl::Vorbis(source) => source.channels(),
-            #[cfg(feature = "flac")]
-            DecoderImpl::Flac(source) => source.channels(),
-            #[cfg(feature = "mp3")]
-            DecoderImpl::Mp3(source) => source.channels(),
+            #[cfg(any(feature = "mp3", feature = "flac"))]
+            DecoderImpl::Symphonia(source) => source.channels(),
             DecoderImpl::None(_) => 0,
         }
     }
@@ -450,10 +398,8 @@ where
             DecoderImpl::Wav(source) => source.sample_rate(),
             #[cfg(feature = "vorbis")]
             DecoderImpl::Vorbis(source) => source.sample_rate(),
-            #[cfg(feature = "flac")]
-            DecoderImpl::Flac(source) => source.sample_rate(),
-            #[cfg(feature = "mp3")]
-            DecoderImpl::Mp3(source) => source.sample_rate(),
+            #[cfg(any(feature = "mp3", feature = "flac"))]
+            DecoderImpl::Symphonia(source) => source.sample_rate(),
             DecoderImpl::None(_) => 1,
         }
     }
@@ -461,6 +407,18 @@ where
     #[inline]
     fn total_duration(&self) -> Option<Duration> {
         None
+    }
+
+    fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
+        match &mut self.0 {
+            #[cfg(feature = "wav")]
+            DecoderImpl::Wav(source) => source.seek(time),
+            #[cfg(feature = "vorbis")]
+            DecoderImpl::Vorbis(source) => source.seek(time),
+            #[cfg(any(feature = "mp3", feature = "flac"))]
+            DecoderImpl::Symphonia(source) => source.seek(time),
+            DecoderImpl::None(_) => Ok(time),
+        }
     }
 }
 
