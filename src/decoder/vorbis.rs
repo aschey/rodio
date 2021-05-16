@@ -1,4 +1,3 @@
-use core::panic;
 use std::io::{Read, Seek, SeekFrom};
 use std::time::Duration;
 use std::vec;

@@ -94,7 +94,6 @@ impl Source for SymphoniaDecoder {
     }
 
     fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
-        dbg!("here");
         match self.format.seek(SeekTo::Time {
             time: Time::new(time.as_secs(), time.subsec_nanos() as f64),
         }) {
