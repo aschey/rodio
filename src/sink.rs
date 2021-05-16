@@ -162,11 +162,8 @@ impl Sink {
         }
     }
 
-    pub fn sleep_until_current(&self) -> Option<()> {
-        if let Some(sleep_until_end) = self.sleep_until_end.lock().unwrap().pop_front() {
-            return sleep_until_end.recv().ok();
-        }
-        None
+    pub fn get_current_receiver(&self) -> Option<Receiver<()>> {
+        self.sleep_until_end.lock().unwrap().pop_front()
     }
     /// Returns true if this sink has no more sounds to play.
     #[inline]
