@@ -1,5 +1,6 @@
 //! Decodes samples from an audio file.
 
+use core::str;
 use std::fmt;
 #[allow(unused_imports)]
 use std::io::{Read, Seek, SeekFrom};
@@ -323,12 +324,11 @@ where
                 }
                 #[cfg(feature = "vorbis")]
                 DecoderImpl::Vorbis(source) => {
-                    use lewton::inside_ogg::OggStreamReader;
-                    let mut reader = source.into_inner().into_inner();
+                    use lewton::inside_ogg::SeekableOggStreamReader;
+                    let mut reader = source.into_inner().into_inner().into_inner();
                     reader.seek_bytes(SeekFrom::Start(0)).ok()?;
-                    let mut source = vorbis::VorbisDecoder::from_stream_reader(
-                        OggStreamReader::from_ogg_reader(reader).ok()?,
-                    );
+                    let stream_reader = SeekableOggStreamReader::new(reader.into_inner()).ok()?;
+                    let mut source = vorbis::VorbisDecoder::from_stream_reader(stream_reader);
                     let sample = source.next();
                     (DecoderImpl::Vorbis(source), sample)
                 }

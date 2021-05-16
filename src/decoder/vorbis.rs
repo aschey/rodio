@@ -1,17 +1,18 @@
+use core::panic;
 use std::io::{Read, Seek, SeekFrom};
 use std::time::Duration;
 use std::vec;
 
 use crate::Source;
 
-use lewton::inside_ogg::OggStreamReader;
+use lewton::inside_ogg::SeekableOggStreamReader;
 
 /// Decoder for an OGG file that contains Vorbis sound format.
 pub struct VorbisDecoder<R>
 where
     R: Read + Seek,
 {
-    stream_reader: OggStreamReader<R>,
+    stream_reader: SeekableOggStreamReader<R>,
     current_data: vec::IntoIter<i16>,
 }
 
@@ -25,18 +26,18 @@ where
             return Err(data);
         }
 
-        let stream_reader = OggStreamReader::new(data).unwrap();
+        let stream_reader = SeekableOggStreamReader::new(data).unwrap();
         Ok(Self::from_stream_reader(stream_reader))
     }
-    pub fn from_stream_reader(mut stream_reader: OggStreamReader<R>) -> Self {
-        let mut data = match stream_reader.read_dec_packet_itl() {
+    pub fn from_stream_reader(mut stream_reader: SeekableOggStreamReader<R>) -> Self {
+        let mut data = match stream_reader.inner_mut().read_dec_packet_itl() {
             Ok(Some(d)) => d,
             _ => Vec::new(),
         };
 
         // The first packet is always empty, therefore
         // we need to read the second frame to get some data
-        if let Ok(Some(mut d)) = stream_reader.read_dec_packet_itl() {
+        if let Ok(Some(mut d)) = stream_reader.inner_mut().read_dec_packet_itl() {
             data.append(&mut d);
         }
 
@@ -45,8 +46,29 @@ where
             current_data: data.into_iter(),
         }
     }
-    pub fn into_inner(self) -> OggStreamReader<R> {
+    pub fn into_inner(self) -> SeekableOggStreamReader<R> {
         self.stream_reader
+    }
+
+    fn get_next(&mut self) {
+        loop {
+            match self
+                .stream_reader
+                .inner_mut()
+                .read_dec_packet_itl()
+                .unwrap()
+            {
+                Some(data) => {
+                    if data.len() > 0 {
+                        self.current_data = data.into_iter();
+                        break;
+                    }
+                }
+                None => {
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -61,12 +83,12 @@ where
 
     #[inline]
     fn channels(&self) -> u16 {
-        self.stream_reader.ident_hdr.audio_channels as u16
+        self.stream_reader.inner().ident_hdr().audio_channels as u16
     }
 
     #[inline]
     fn sample_rate(&self) -> u32 {
-        self.stream_reader.ident_hdr.audio_sample_rate
+        self.stream_reader.inner().ident_hdr().audio_sample_rate
     }
 
     #[inline]
@@ -77,7 +99,7 @@ where
     fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
         match self
             .stream_reader
-            .seek_absgp_pg(time.as_secs() * self.sample_rate() as u64)
+            .seek_absgp(time.as_secs() * self.sample_rate() as u64)
         {
             Ok(()) => Ok(time),
             Err(_) => Err(()),
@@ -95,15 +117,11 @@ where
     fn next(&mut self) -> Option<i16> {
         if let Some(sample) = self.current_data.next() {
             if self.current_data.len() == 0 {
-                if let Ok(Some(data)) = self.stream_reader.read_dec_packet_itl() {
-                    self.current_data = data.into_iter();
-                }
+                self.get_next();
             }
             Some(sample)
         } else {
-            if let Ok(Some(data)) = self.stream_reader.read_dec_packet_itl() {
-                self.current_data = data.into_iter();
-            }
+            self.get_next();
             self.current_data.next()
         }
     }
@@ -121,7 +139,7 @@ where
 {
     let stream_pos = data.seek(SeekFrom::Current(0)).unwrap();
 
-    if OggStreamReader::new(data.by_ref()).is_err() {
+    if SeekableOggStreamReader::new(data.by_ref()).is_err() {
         data.seek(SeekFrom::Start(stream_pos)).unwrap();
         return false;
     }
