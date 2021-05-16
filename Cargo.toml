@@ -12,7 +12,7 @@ edition = "2018"
 [dependencies]
 cpal = "0.13"
 hound = { version = "3.3.1", optional = true }
-lewton = { git = "https://github.com/aschey/lewton", rev="c4aaafd", optional = true }
+lewton = { git = "https://github.com/aschey/lewton", rev="4c1bd3f", optional = true }
 symphonia = {git="https://github.com/aschey/symphonia", rev="47b039c", optional = true, features = [ "aac", "mp3", "isomp4" ] }
 pretty_env_logger = "0.4.0"
 
