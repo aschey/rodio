@@ -13,16 +13,18 @@ version = "0.13.1"
 cpal = {git = "https://github.com/aschey/cpal", rev = "6b758f4"}
 hound = {version = "3.3.1", optional = true}
 lewton = {git = "https://github.com/aschey/lewton", rev = "4c1bd3f", optional = true}
+ogg_metadata = {version = "0.4.1", optional = true}
 pretty_env_logger = "0.4.0"
 symphonia = {git = "https://github.com/aschey/symphonia", rev = "47b039c", optional = true, features = ["aac", "mp3", "isomp4"]}
 
 [features]
 default = ["flac", "vorbis", "wav", "mp3"]
 
+aac = ["symphonia"]
 dummy = ["cpal/dummy"]
 flac = ["symphonia"]
 mp3 = ["symphonia"]
-vorbis = ["lewton"]
+vorbis = ["lewton", "ogg_metadata"]
 wasm-bindgen = ["cpal/wasm-bindgen"]
 wav = ["hound"]
 

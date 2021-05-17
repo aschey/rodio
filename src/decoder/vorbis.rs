@@ -138,7 +138,7 @@ where
 {
     let stream_pos = data.seek(SeekFrom::Current(0)).unwrap();
 
-    if SeekableOggStreamReader::new(data.by_ref()).is_err() {
+    if ogg_metadata::read_format(&mut data).is_err() {
         data.seek(SeekFrom::Start(stream_pos)).unwrap();
         return false;
     }
