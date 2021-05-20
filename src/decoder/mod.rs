@@ -7,12 +7,15 @@ use std::fmt;
 use std::io::{Read, Seek, SeekFrom};
 use std::mem;
 use std::time::Duration;
-#[cfg(any(feature = "mp3", feature = "flac"))]
-use symphonia::core::io::{MediaSource, MediaSourceStream, ReadOnlySource};
+#[cfg(any(feature = "mp3", feature = "flac", feature = "aac"))]
+use symphonia::core::io::{MediaSource, MediaSourceStream};
 
 use crate::Source;
 
-#[cfg(any(feature = "mp3", feature = "flac"))]
+use self::read_seek_source::ReadSeekSource;
+#[cfg(any(feature = "mp3", feature = "flac", feature = "aac"))]
+mod read_seek_source;
+#[cfg(any(feature = "mp3", feature = "flac", feature = "aac"))]
 mod symphonia_decoder;
 #[cfg(feature = "vorbis")]
 mod vorbis;
@@ -38,7 +41,7 @@ where
     Wav(wav::WavDecoder<R>),
     #[cfg(feature = "vorbis")]
     Vorbis(vorbis::VorbisDecoder<R>),
-    #[cfg(any(feature = "mp3", feature = "flac"))]
+    #[cfg(any(feature = "mp3", feature = "flac", feature = "aac"))]
     Symphonia(symphonia_decoder::SymphoniaDecoder),
     None(::std::marker::PhantomData<R>),
 }
@@ -71,7 +74,7 @@ where
         #[cfg(any(feature = "mp3", feature = "flac", feature = "aac"))]
         let data = {
             let mss = MediaSourceStream::new(
-                Box::new(ReadOnlySource::new(data)) as Box<dyn MediaSource>,
+                Box::new(ReadSeekSource::new(data)) as Box<dyn MediaSource>,
                 Default::default(),
             );
 
@@ -111,7 +114,7 @@ where
     #[cfg(any(feature = "mp3", feature = "flac", feature = "aac"))]
     pub fn new_symphonia(data: R) -> Result<Decoder<R>, DecoderError> {
         let mss = MediaSourceStream::new(
-            Box::new(ReadOnlySource::new(data)) as Box<dyn MediaSource>,
+            Box::new(ReadSeekSource::new(data)) as Box<dyn MediaSource>,
             Default::default(),
         );
 
