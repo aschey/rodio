@@ -13,15 +13,13 @@ use symphonia::core::{
 use crate::Source;
 
 pub struct SymphoniaDecoder {
-    decoder: Box<dyn symphonia::core::codecs::Decoder>,
+    decoder: Box<dyn symphonia::core::codecs::Decoder + Send>,
     current_frame: Packet,
     current_frame_offset: usize,
-    format: Box<dyn FormatReader>,
+    format: Box<dyn FormatReader + Send>,
     buffer: SampleBuffer<i16>,
     channels: usize,
 }
-
-unsafe impl Send for SymphoniaDecoder {}
 
 impl SymphoniaDecoder {
     pub fn new(mss: MediaSourceStream) -> Result<Self, ()> {

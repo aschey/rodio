@@ -1,12 +1,12 @@
 //! Decodes samples from an audio file.
 
 use core::str;
+use std::error::Error;
 use std::fmt;
 #[allow(unused_imports)]
 use std::io::{Read, Seek, SeekFrom};
 use std::mem;
 use std::time::Duration;
-use std::{error::Error, io};
 #[cfg(any(feature = "mp3", feature = "flac"))]
 use symphonia::core::io::{MediaSource, MediaSourceStream, ReadOnlySource};
 
@@ -43,57 +43,6 @@ where
     None(::std::marker::PhantomData<R>),
 }
 
-/// `ReadSeekSource` implements a seekable `MediaSource` for any reader that implements the
-/// `std::io::Read` and `std::io::Seek` traits.
-pub struct ReadSeekSource<T: io::Read + io::Seek> {
-    inner: T,
-}
-
-impl<T: io::Read + io::Seek> ReadSeekSource<T> {
-    /// Instantiates a new `ReadSeekSource<T>` by taking ownership and wrapping the provided
-    /// `Read + Seek`er.
-    pub fn new(inner: T) -> Self {
-        ReadSeekSource { inner }
-    }
-
-    /// Gets a reference to the underlying reader.
-    pub fn get_ref(&self) -> &T {
-        &self.inner
-    }
-
-    /// Gets a mutable reference to the underlying reader.
-    pub fn get_mut(&mut self) -> &mut T {
-        &mut self.inner
-    }
-
-    /// Unwraps this `ReadSeekSource<T>`, returning the underlying reader.
-    pub fn into_inner(self) -> T {
-        self.inner
-    }
-}
-
-impl<T: io::Read + io::Seek> MediaSource for ReadSeekSource<T> {
-    fn is_seekable(&self) -> bool {
-        true
-    }
-
-    fn len(&self) -> Option<u64> {
-        None
-    }
-}
-
-impl<T: io::Read + io::Seek> io::Read for ReadSeekSource<T> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.inner.read(buf)
-    }
-}
-
-impl<T: io::Read + io::Seek> io::Seek for ReadSeekSource<T> {
-    fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
-        self.inner.seek(pos)
-    }
-}
-
 impl<R> Decoder<R>
 where
     R: Read + Seek + Send + 'static,
@@ -122,7 +71,7 @@ where
         #[cfg(any(feature = "mp3", feature = "flac", feature = "aac"))]
         let data = {
             let mss = MediaSourceStream::new(
-                Box::new(ReadSeekSource::new(data)) as Box<dyn MediaSource>,
+                Box::new(ReadOnlySource::new(data)) as Box<dyn MediaSource>,
                 Default::default(),
             );
 
