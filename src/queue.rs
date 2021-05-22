@@ -221,29 +221,33 @@ where
                     return Err(());
                 }
             } else {
-                next.remove(0)
+                let (mut next, signal_after_end) = next.remove(0);
+                loop {
+                    let l = next.next();
+                    let r = next.next();
+
+                    match (l, r) {
+                        (Some(ll), Some(rr)) => {
+                            if ll.to_f32() == 0. && rr.to_f32() == 0. {
+                                continue;
+                            } else {
+                                self.sample_cache.push_back(l);
+                                self.sample_cache.push_back(r);
+                                break;
+                            }
+                        }
+                        _ => {
+                            self.sample_cache.push_back(l);
+                            self.sample_cache.push_back(r);
+                            break;
+                        }
+                    }
+                }
+                (next, signal_after_end)
             }
         };
 
         self.current = next;
-        loop {
-            let l = self.current.next();
-            let r = self.current.next();
-            match (l, r) {
-                (Some(ll), Some(rr)) => {
-                    if ll.to_f32() == 0. && rr.to_f32() == 0. {
-                        continue;
-                    }
-                }
-                _ => {
-                    self.sample_cache.push_back(l);
-                    self.sample_cache.push_back(r);
-                    break;
-                }
-            }
-
-            break;
-        }
 
         self.signal_after_end = signal_after_end;
         Ok(())
