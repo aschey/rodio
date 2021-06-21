@@ -3,7 +3,7 @@ use std::time::Duration;
 use symphonia::core::{
     audio::SampleBuffer,
     codecs::DecoderOptions,
-    formats::{FormatOptions, FormatReader, Packet, SeekTo},
+    formats::{FormatOptions, FormatReader, Packet, SeekMode, SeekTo},
     io::MediaSourceStream,
     meta::MetadataOptions,
     probe::Hint,
@@ -13,10 +13,10 @@ use symphonia::core::{
 use crate::Source;
 
 pub struct SymphoniaDecoder {
-    decoder: Box<dyn symphonia::core::codecs::Decoder + Send>,
+    decoder: Box<dyn symphonia::core::codecs::Decoder>,
     current_frame: Packet,
     current_frame_offset: usize,
-    format: Box<dyn FormatReader + Send>,
+    format: Box<dyn FormatReader>,
     buffer: SampleBuffer<i16>,
     channels: usize,
 }
@@ -93,17 +93,17 @@ impl Source for SymphoniaDecoder {
 
     fn seek(&mut self, time: Duration) -> Result<Duration, ()> {
         let nanos_per_sec = 1_000_000_000.0;
-        match self.format.seek(SeekTo::Time {
-            time: Time::new(time.as_secs(), time.subsec_nanos() as f64 / nanos_per_sec),
-        }) {
-            Ok(seek_to) => {
-                let time = match seek_to {
-                    SeekTo::Time { time } => time,
-                    SeekTo::TimeStamp { ts, stream: _ } => {
-                        let base = TimeBase::new(1, self.sample_rate());
-                        base.calc_time(ts)
-                    }
-                };
+        match self.format.seek(
+            SeekMode::Coarse,
+            SeekTo::Time {
+                time: Time::new(time.as_secs(), time.subsec_nanos() as f64 / nanos_per_sec),
+                stream: None,
+            },
+        ) {
+            Ok(seeked_to) => {
+                let base = TimeBase::new(1, self.sample_rate());
+                let time = base.calc_time(seeked_to.actual_ts);
+
                 Ok(Duration::from_millis(
                     time.seconds * 1000 + ((time.frac * 60. * 1000.).round() as u64),
                 ))
@@ -119,27 +119,23 @@ impl Iterator for SymphoniaDecoder {
     #[inline]
     fn next(&mut self) -> Option<i16> {
         if self.current_frame_offset == self.buffer.len() {
-            loop {
-                match self.format.next_packet() {
-                    Ok(p) => {
-                        self.current_frame = p;
+            match self.format.next_packet() {
+                Ok(p) => {
+                    self.current_frame = p;
 
-                        match self.decoder.decode(&self.current_frame) {
-                            Ok(decoded) => {
-                                let spec = decoded.spec();
-                                let duration = symphonia::core::units::Duration::from(
-                                    decoded.capacity() as u64,
-                                );
-                                let mut buf = SampleBuffer::<i16>::new(duration, spec.to_owned());
-                                buf.copy_interleaved_ref(decoded);
-                                self.buffer = buf;
-                                break;
-                            }
-                            Err(_) => continue,
+                    match self.decoder.decode(&self.current_frame) {
+                        Ok(decoded) => {
+                            let spec = decoded.spec();
+                            let duration =
+                                symphonia::core::units::Duration::from(decoded.capacity() as u64);
+                            let mut buf = SampleBuffer::<i16>::new(duration, spec.to_owned());
+                            buf.copy_interleaved_ref(decoded);
+                            self.buffer = buf;
                         }
+                        Err(_) => return None,
                     }
-                    Err(_) => return None,
                 }
+                Err(_) => return None,
             }
             self.current_frame_offset = 0;
         }

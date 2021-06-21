@@ -14,7 +14,7 @@ cpal = {git = "https://github.com/aschey/cpal", rev = "6b758f4"}
 hound = {version = "3.3.1", optional = true}
 lewton = {git = "https://github.com/aschey/lewton", rev = "4c1bd3f", optional = true}
 ogg_metadata = {version = "0.4.1", optional = true}
-symphonia = {git = "https://github.com/aschey/symphonia", rev = "85b4c90", optional = true, features = ["aac", "mp3", "isomp4"]}
+symphonia = {git = "https://github.com/pdeljanov/Symphonia", rev = "16b2e7f", optional = true, features = ["aac", "mp3", "isomp4"]}
 
 [features]
 default = ["flac", "vorbis", "wav", "mp3"]
