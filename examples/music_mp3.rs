@@ -3,7 +3,6 @@ use std::{io::BufReader, thread, time::Duration};
 use rodio::Source;
 
 fn main() {
-    pretty_env_logger::init();
     let (_stream, handle) = rodio::OutputStream::try_default().unwrap();
     let sink = rodio::Sink::try_new(&handle).unwrap();
 

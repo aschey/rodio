@@ -10,22 +10,32 @@ repository = "https://github.com/RustAudio/rodio"
 version = "0.14.0"
 
 [dependencies]
+claxon = {version = "0.4.2", optional = true}
 cpal = {git = "https://github.com/aschey/cpal", rev = "6b758f4"}
 hound = {version = "3.3.1", optional = true}
 lewton = {git = "https://github.com/aschey/lewton", rev = "4c1bd3f", optional = true}
+minimp3 = {version = "0.5.0", optional = true}
 ogg_metadata = {version = "0.4.1", optional = true}
-symphonia = {git = "https://github.com/pdeljanov/Symphonia", rev = "16b2e7f", optional = true, features = ["aac", "mp3", "isomp4"]}
-
+symphonia = {version = "0.3", optional = true}
 [features]
-default = ["flac", "vorbis", "wav", "mp3"]
+default = ["flac", "vorbis", "wav", "mp3", "symphonia-all"]
 
-aac = ["symphonia"]
-dummy = ["cpal/dummy"]
-flac = ["symphonia"]
-mp3 = ["symphonia"]
+flac = ["claxon"]
+mp3 = ["minimp3"]
+
+symphonia-aac = ["symphonia/aac"]
+symphonia-all = ["symphonia-aac", "symphonia-flac", "symphonia-isomp4", "symphonia-mp3", "symphonia-wav"]
+symphonia-flac = ["symphonia/flac"]
+symphonia-isomp4 = ["symphonia/isomp4"]
+symphonia-mp3 = ["symphonia/mp3"]
+symphonia-wav = ["symphonia/wav", "symphonia/pcm"]
 vorbis = ["lewton", "ogg_metadata"]
 wasm-bindgen = ["cpal/wasm-bindgen"]
 wav = ["hound"]
 
 [dev-dependencies]
 quickcheck = "0.9.2"
+
+[[example]]
+name = "music_m4a"
+required-features = ["symphonia-isomp4", "symphonia-aac"]
