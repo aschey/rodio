@@ -83,8 +83,8 @@ impl Sink {
                     // Workaround for buffer underrun issue
                     // If song is started while volume is set to 0, it causes a buffer underrun on alsa
                     let mut new_factor = *controls.volume.lock().unwrap();
-                    if new_factor < 0.001 {
-                        new_factor = 0.001;
+                    if new_factor < 0.0001 {
+                        new_factor = 0.0001;
                     }
                     src.inner_mut().set_factor(new_factor);
                     src.inner_mut()
